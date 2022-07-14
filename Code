@@ -1,0 +1,68 @@
+--quick view of available tables
+select * from block_user limit 5;
+select * from contact limit 5;
+select * from deal_contact limit 5;
+select * from email limit 5;
+select * from deal limit 5;
+
+/*Which month has the highest count of valid users created?
+A valid user is defined as:
+Has a Non-Block email address
+Has User ID
+Neither the first name nor last name includes “test”*/
+
+--valid users
+select * from block_user b
+inner join contact c on c.user_id= b.user_id
+inner join email e on e.user_id = b.user_id
+where b.user_id is not null
+and e.hashed_email not like '%block%'
+and c.first_name  not in ('TEST','test','Test')
+and c.last_name  not in ('TEST','test','Test')
+--distinct valid users by date
+select distinct ltrim(TO_CHAR(b.create_date,'mm-yyyy'),'0') AS Month_Date,count(distinct b.user_id)as Users from block_user b
+inner join contact c on c.user_id= b.user_id
+inner join email e on e.user_id = b.user_id
+where b.user_id is not null
+and e.hashed_email not like '%block%'
+and c.first_name  not in ('TEST','test','Test')
+and c.last_name  not in ('TEST','test','Test')
+group by distinct ltrim(TO_CHAR(b.create_date,'mm-yyyy'),'0')
+
+/*Which month brought in the highest gross deal value?*/
+
+select distinct ltrim(TO_CHAR(d.closed_won_date,'mm-yyyy'),'0') AS Month_Date,sum(d.deal_value_usd)
+from deal d
+where closed_won_date is not null
+group by distinct ltrim(TO_CHAR(d.closed_won_date,'mm-yyyy'),'0')
+
+/*What percentage of “closed won” deals does each city account for?
+We’ll define a “close won” deal as one that:
+Has an assigned closed, won date
+Has a valid user (use same criteria as question #1)*/
+--create valid user table
+create table valid_users as
+select distinct b.user_id 
+from block_user b
+inner join contact c on c.user_id= b.user_id
+inner join email e on e.user_id = b.user_id
+where b.user_id is not null
+and e.hashed_email not like '%block%'
+and c.first_name  not in ('TEST','test','Test')
+and c.last_name  not in ('TEST','test','Test');
+
+--get count of deals by city
+select upper(property_city),count(distinct d.deal_id)as Number_of_Deals from deal d
+inner join deal_contact dc on dc.deal_id = d.deal_id
+inner join contact c on c.contact_id = dc.contact_id
+inner join valid_users v on v.user_id = c.user_id
+where closed_won_date is not null
+group by upper(property_city)
+
+--look at null cities
+select * from deal d
+inner join deal_contact dc on dc.deal_id = d.deal_id
+inner join contact c on c.contact_id = dc.contact_id
+inner join valid_users v on v.user_id = c.user_id
+where closed_won_date is not null
+and property_city is null
